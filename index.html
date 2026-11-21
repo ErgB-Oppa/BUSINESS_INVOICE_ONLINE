@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Invoice Keeper</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1b1f24;--mut:#6b7380;--ac:#0f766e;--acx:#fff;--bd:#e2e5ea;--red:#c62828;--amb:#b45309;--grn:#15803d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171b;--card:#1e2329;--tx:#eceff3;--mut:#98a2b0;--ac:#2dd4bf;--acx:#06201d;--bd:#2f363f;--red:#ef6b6b;--amb:#f0a64a;--grn:#4ade80;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14171b;--card:#1e2329;--tx:#eceff3;--mut:#98a2b0;--ac:#2dd4bf;--acx:#06201d;--bd:#2f363f;--red:#ef6b6b;--amb:#f0a64a;--grn:#4ade80;color-scheme:dark}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:84px}
+#app{max-width:640px;margin:0 auto;padding:14px}
+h1{font-size:20px;margin:4px 0 12px}h2{font-size:15px;margin:16px 0 8px;color:var(--mut);font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mut{color:var(--mut);font-size:13px}.b{font-weight:600}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.red{color:var(--red)}.amb{color:var(--amb)}.grn{color:var(--grn)}
+button{font:inherit;border:0;border-radius:10px;padding:11px 14px;background:var(--ac);color:var(--acx);font-weight:600}
+button.s{background:transparent;color:var(--ac);border:1px solid var(--bd)}button.d{background:transparent;color:var(--red);border:1px solid var(--bd)}
+button.sm{padding:6px 10px;font-size:14px}
+input,select,textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);margin:4px 0 10px}
+label{font-size:13px;color:var(--mut)}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;background:none;color:var(--mut);border-radius:0;padding:12px 4px;font-size:13px}nav button.on{color:var(--ac)}
+.banner{background:var(--card);border:1px solid var(--amb);border-left-width:5px;border-radius:12px;padding:12px;margin-bottom:12px}
+.sheet{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:calc(14px + env(safe-area-inset-top,0px)) 14px 40px;z-index:5}
+.sheet>div{max-width:640px;margin:0 auto}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.item{display:grid;grid-template-columns:1fr 60px 90px 34px;gap:6px;align-items:start}.item input{margin:0 0 6px}
+.bar{height:8px;border-radius:99px;background:var(--bd);overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:var(--ac)}.sub{display:flex;justify-content:space-between;font-size:13px;color:var(--mut);padding:2px 0}
+#rcpt{display:none}
+#rcpt.show{display:block;position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:9;padding:14px}
+.paper{background:#fff;color:#000;width:80mm;max-width:100%;margin:10px auto;padding:10px;font:13px/1.35 "Courier New",monospace}
+.paper hr{border:0;border-top:1px dashed #000;margin:8px 0}.paper .r{display:flex;justify-content:space-between;gap:6px}.paper .c{text-align:center}
+@media print{body{background:#fff;padding:0}#app,nav,.noprint,.sheet{display:none!important}#rcpt.show{position:static;display:block;padding:0;background:#fff}.paper{margin:0;width:80mm}@page{margin:4mm}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav class="noprint"><button data-t="home">Home</button><button data-t="inv">Invoices</button><button data-t="cus">Customers</button><button data-t="sal">Sales</button><button data-t="set">Settings</button></nav>
+<div id="rcpt"></div>
+<script>
+var DB={settings:{biz:'My Business',addr:'',phone:'',cur:'₱',remind:5,notify:false,footer:'Thank you for your business!'},customers:[],invoices:[],seq:1,notified:{}};
+var tab='home',KEY='invoiceKeeper.v1';
+function load(){try{var s=localStorage.getItem(KEY);if(s){var d=JSON.parse(s);DB=Object.assign(DB,d);DB.settings=Object.assign({biz:'My Business',addr:'',phone:'',cur:'₱',remind:5,notify:false,footer:''},d.settings||{})}}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}}
+function $(s){return document.querySelector(s)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function money(n){return DB.settings.cur+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
+function ymd(d){var z=function(n){return String(n).padStart(2,'0')};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
+function pd(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2])}
+function today(){var d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())}
+function daysTo(s){return Math.round((pd(s)-today())/864e5)}
+function total(i){return (i.items||[]).reduce(function(a,x){return a+(+x.qty||0)*(+x.price||0)},0)}
+function cust(id){return DB.customers.find(function(c){return c.id===id})||{name:'(deleted customer)'}}
+function fdate(s){return pd(s).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})}
+function dueList(){var r=+DB.settings.remind||5;return DB.invoices.filter(function(i){return !i.paid&&daysTo(i.due)<=r}).sort(function(a,b){return a.due<b.due?-1:1})}
+function dueTag(i){if(i.paid)return '<span class="tag grn">Paid</span>';var d=daysTo(i.due);if(d<0)return '<span class="tag red">Overdue '+(-d)+'d</span>';if(d===0)return '<span class="tag red">Due today</span>';if(d<=(+DB.settings.remind||5))return '<span class="tag amb">Due in '+d+'d</span>';return '<span class="tag mut">Due '+fdate(i.due)+'</span>'}
+
+function notifyDue(force){
+  var l=dueList(),t=ymd(new Date());
+  if(!DB.settings.notify||!('Notification' in window)||Notification.permission!=='granted')return;
+  l.forEach(function(i){
+    if(!force&&DB.notified[i.id]===t)return;
+    DB.notified[i.id]=t;
+    var d=daysTo(i.due),msg=(d<0?'Overdue by '+(-d)+' day(s)':d===0?'Due today':'Due in '+d+' day(s)')+' · '+money(total(i));
+    var title='Invoice '+i.no+' – '+cust(i.cid).name;
+    try{if(navigator.serviceWorker&&navigator.serviceWorker.ready){navigator.serviceWorker.ready.then(function(r){r.showNotification(title,{body:msg})}).catch(function(){new Notification(title,{body:msg})})}else{new Notification(title,{body:msg})}}catch(e){try{new Notification(title,{body:msg})}catch(x){}}
+  });
+  save();
+}
+
+function render(){
+  document.querySelectorAll('nav button').forEach(function(b){b.classList.toggle('on',b.dataset.t===tab)});
+  var h='';
+  if(tab==='home')h=vHome();else if(tab==='inv')h=vInv();else if(tab==='cus')h=vCus();else if(tab==='sal')h=vSales();else h=vSet();
+  $('#app').innerHTML=h;
+}
+function invRow(i){return '<div class="card" onclick="openInv(\''+i.id+'\')"><div class="row"><div><div class="b">#'+esc(i.no)+' · '+esc(cust(i.cid).name)+'</div><div class="mut">Due '+fdate(i.due)+'</div></div><div style="text-align:right"><div class="b">'+money(total(i))+'</div>'+dueTag(i)+'</div></div></div>'}
+function vHome(){
+  var l=dueList(),unpaid=DB.invoices.filter(function(i){return !i.paid}),owed=unpaid.reduce(function(a,i){return a+total(i)},0);
+  var h='<h1>'+esc(DB.settings.biz)+'</h1>';
+  if(l.length)h+='<div class="banner"><div class="b">⏰ '+l.length+' invoice'+(l.length>1?'s':'')+' due within '+(+DB.settings.remind||5)+' days or overdue</div></div>'+l.map(invRow).join('');
+  else h+='<div class="card mut">Nothing due soon. 🎉</div>';
+  h+='<div class="g2"><div class="card"><div class="mut">Unpaid total</div><div class="b" style="font-size:20px">'+money(owed)+'</div></div><div class="card"><div class="mut">Customers</div><div class="b" style="font-size:20px">'+DB.customers.length+'</div></div></div>';
+  h+='<button style="width:100%" onclick="editInv()">+ New invoice</button>';
+  return h;
+}
+function vInv(){
+  var l=DB.invoices.slice().sort(function(a,b){return a.paid-b.paid||(a.due<b.due?-1:1)});
+  return '<div class="row"><h1>Invoices</h1><button class="sm" onclick="editInv()">+ New</button></div>'+(l.length?l.map(invRow).join(''):'<div class="card mut">No invoices yet.</div>');
+}
+function vCus(){
+  return '<div class="row"><h1>Customers</h1><button class="sm" onclick="editCus()">+ New</button></div>'+(DB.customers.length?DB.customers.map(function(c){
+    var n=DB.invoices.filter(function(i){return i.cid===c.id&&!i.paid});
+    var nx=n.sort(function(a,b){return a.due<b.due?-1:1})[0];
+    return '<div class="card" onclick="editCus(\''+c.id+'\')"><div class="row"><div><div class="b">'+esc(c.name)+'</div><div class="mut">'+esc(c.phone||'')+'</div></div><div style="text-align:right" class="mut">'+(nx?'Next due<br>'+fdate(nx.due):'No unpaid invoices')+'</div></div></div>'}).join(''):'<div class="card mut">No customers yet.</div>');
+}
+var salesRange=30;
+function vSales(){
+  var t=today(),inv=DB.invoices;
+  var sum=function(a){return a.reduce(function(s,i){return s+total(i)},0)};
+  var ago=function(n){return new Date(t.getFullYear(),t.getMonth(),t.getDate()-n)};
+  var tdy=inv.filter(function(i){return i.date===ymd(t)});
+  var wk=inv.filter(function(i){return pd(i.date)>=ago(6)});
+  var mo=inv.filter(function(i){var d=pd(i.date);return d.getFullYear()===t.getFullYear()&&d.getMonth()===t.getMonth()});
+  var from=salesRange?ago(salesRange-1):null;
+  var list=inv.filter(function(i){return !from||pd(i.date)>=from});
+  var days={};list.forEach(function(i){(days[i.date]=days[i.date]||[]).push(i)});
+  var keys=Object.keys(days).sort().reverse();
+  var max=Math.max.apply(null,keys.map(function(k){return sum(days[k])}).concat([1]));
+  var card=function(l,a){return '<div class="card"><div class="mut">'+l+'</div><div class="b" style="font-size:18px">'+money(sum(a))+'</div><div class="mut">'+a.length+' invoice'+(a.length===1?'':'s')+'</div></div>'};
+  var h='<h1>Sales</h1><div class="g2">'+card('Today',tdy)+card('Last 7 days',wk)+'</div>'+card('This month',mo);
+  h+='<div class="row" style="margin-top:14px"><h2 style="margin:0">Daily sales</h2><select id="sr" style="width:auto;margin:0" onchange="salesRange=+this.value;render()">'+[[7,'Last 7 days'],[30,'Last 30 days'],[90,'Last 90 days'],[0,'All time']].map(function(o){return '<option value="'+o[0]+'"'+(o[0]===salesRange?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></div>';
+  h+='<div class="mut" style="margin:6px 0 10px">Total in this period: <b>'+money(sum(list))+'</b> from '+list.length+' invoice'+(list.length===1?'':'s')+'</div>';
+  if(!keys.length)return h+'<div class="card mut">No invoices in this period yet.</div>';
+  keys.forEach(function(k){
+    var a=days[k],paid=a.filter(function(i){return i.paid});
+    h+='<div class="card"><div class="row"><span class="b">'+pd(k).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'})+'</span><span class="b">'+money(sum(a))+'</span></div><div class="bar"><i style="width:'+Math.round(sum(a)/max*100)+'%"></i></div><div class="sub"><span>'+a.length+' invoice'+(a.length===1?'':'s')+'</span><span>Paid '+money(sum(paid))+' · Unpaid '+money(sum(a)-sum(paid))+'</span></div>'+a.map(function(i){return '<div class="sub" onclick="openInv(\''+i.id+'\')"><span>#'+esc(i.no)+' · '+esc(cust(i.cid).name)+'</span><span>'+money(total(i))+(i.paid?' ✓':'')+'</span></div>'}).join('')+'</div>';
+  });
+  return h;
+}
+function vSet(){
+  var s=DB.settings,np='Notification' in window?Notification.permission:'unsupported';
+  return '<h1>Settings</h1><div class="card"><label>Business name</label><input id="s_biz" value="'+esc(s.biz)+'"><label>Address</label><input id="s_addr" value="'+esc(s.addr)+'"><label>Phone</label><input id="s_phone" value="'+esc(s.phone)+'"><div class="g2"><div><label>Currency symbol</label><input id="s_cur" value="'+esc(s.cur)+'"></div><div><label>Remind days before due</label><input id="s_rem" type="number" min="0" value="'+(+s.remind)+'"></div></div><label>Receipt footer</label><input id="s_foot" value="'+esc(s.footer)+'"><button onclick="saveSet()">Save settings</button></div>'+
+  '<h2>Reminders</h2><div class="card"><div class="mut" style="margin-bottom:8px">Notification permission: <b>'+np+'</b>. Reminders appear on the Home screen every time you open the app, and as phone notifications when you open it (or while it is open).</div><button class="s" onclick="enableNotif()">Enable notifications</button> <button class="s" onclick="notifyDue(true)">Test now</button></div>'+
+  '<h2>Backup</h2><div class="card"><div class="mut" style="margin-bottom:8px">Data is stored only on this device. Copy the backup text and keep it somewhere safe (e.g. notes or email to yourself).</div><textarea id="bk" rows="4" placeholder="Backup text appears here, or paste a backup to restore"></textarea><button class="s" onclick="$(\'#bk\').value=JSON.stringify(DB)">Show backup</button> <button class="s" onclick="restore()">Restore from text</button></div>';
+}
+function saveSet(){var s=DB.settings;s.biz=$('#s_biz').value||'My Business';s.addr=$('#s_addr').value;s.phone=$('#s_phone').value;s.cur=$('#s_cur').value||'₱';s.remind=Math.max(0,+$('#s_rem').value||5);s.footer=$('#s_foot').value;save();render();alert('Saved')}
+function enableNotif(){if(!('Notification' in window)){alert('This browser does not support notifications. Reminders will still show on the Home screen.');return}Notification.requestPermission().then(function(p){DB.settings.notify=(p==='granted');save();render();notifyDue(true)})}
+function restore(){try{var d=JSON.parse($('#bk').value);if(!d.invoices||!d.customers)throw 0;if(!confirm('Replace all current data with this backup?'))return;DB=d;save();render()}catch(e){alert('That backup text is not valid.')}}
+
+function sheet(html){var s=document.createElement('div');s.className='sheet noprint';s.innerHTML='<div>'+html+'</div>';document.body.appendChild(s);return s}
+function closeSheet(){var s=document.querySelector('.sheet');if(s)s.remove();render()}
+function editCus(id){
+  var c=DB.customers.find(function(x){return x.id===id})||{name:'',phone:'',address:'',email:''};
+  sheet('<h1>'+(id?'Edit':'New')+' customer</h1><label>Name</label><input id="c_n" value="'+esc(c.name)+'"><label>Phone</label><input id="c_p" type="tel" value="'+esc(c.phone)+'"><label>Email</label><input id="c_e" value="'+esc(c.email||'')+'"><label>Address</label><input id="c_a" value="'+esc(c.address||'')+'"><div class="row"><button class="s" onclick="closeSheet()">Cancel</button>'+(id?'<button class="d" onclick="delCus(\''+id+'\')">Delete</button>':'')+'<button onclick="saveCus(\''+(id||'')+'\')">Save</button></div>');
+}
+function saveCus(id){var n=$('#c_n').value.trim();if(!n){alert('Enter a name');return}var c=DB.customers.find(function(x){return x.id===id});if(!c){c={id:uid()};DB.customers.push(c)}c.name=n;c.phone=$('#c_p').value;c.email=$('#c_e').value;c.address=$('#c_a').value;save();closeSheet()}
+function delCus(id){if(DB.invoices.some(function(i){return i.cid===id})&&!confirm('This customer has invoices. Delete anyway?'))return;DB.customers=DB.customers.filter(function(c){return c.id!==id});save();closeSheet()}
+
+var cur=null;
+function editInv(id){
+  var ex=DB.invoices.find(function(x){return x.id===id});
+  if(!DB.customers.length&&!ex){alert('Add a customer first.');tab='cus';render();editCus();return}
+  var due=new Date();due.setDate(due.getDate()+14);
+  cur=ex?JSON.parse(JSON.stringify(ex)):{id:'',no:String(DB.seq).padStart(4,'0'),cid:DB.customers[0].id,date:ymd(new Date()),due:ymd(due),items:[{d:'',qty:1,price:''}],notes:'',paid:false};
+  drawInv();
+}
+function drawInv(){
+  var s=document.querySelector('.sheet');if(s)s.remove();
+  var h='<h1>'+(cur.id?'Edit':'New')+' invoice</h1><div class="g2"><div><label>Invoice no.</label><input id="i_no" value="'+esc(cur.no)+'"></div><div><label>Customer</label><select id="i_c">'+DB.customers.map(function(c){return '<option value="'+c.id+'"'+(c.id===cur.cid?' selected':'')+'>'+esc(c.name)+'</option>'}).join('')+'</select></div><div><label>Date</label><input id="i_d" type="date" value="'+cur.date+'"></div><div><label>Due date</label><input id="i_due" type="date" value="'+cur.due+'"></div></div><h2>Items</h2>';
+  cur.items.forEach(function(x,k){h+='<div class="item"><input placeholder="Description" value="'+esc(x.d)+'" oninput="cur.items['+k+'].d=this.value"><input type="number" inputmode="decimal" placeholder="Qty" value="'+x.qty+'" oninput="cur.items['+k+'].qty=this.value;tot()"><input type="number" inputmode="decimal" placeholder="Price" value="'+x.price+'" oninput="cur.items['+k+'].price=this.value;tot()"><button class="d sm" onclick="cur.items.splice('+k+',1);syncTop();drawInv()">✕</button></div>'});
+  h+='<button class="s sm" onclick="syncTop();cur.items.push({d:\'\',qty:1,price:\'\'});drawInv()">+ Add item</button><div class="row" style="margin:12px 0"><span class="b">Total</span><span class="b" id="tot" style="font-size:20px">'+money(total(cur))+'</span></div><label>Notes</label><textarea id="i_n" rows="2">'+esc(cur.notes)+'</textarea><label><input type="checkbox" id="i_p" style="width:auto;margin-right:8px"'+(cur.paid?' checked':'')+'>Marked as paid</label><div class="row" style="margin-top:12px"><button class="s" onclick="closeSheet()">Cancel</button>'+(cur.id?'<button class="d" onclick="delInv()">Delete</button>':'')+'<button onclick="saveInv()">Save</button></div>';
+  sheet(h);
+}
+function tot(){$('#tot').textContent=money(total(cur))}
+function syncTop(){if(!$('#i_no'))return;cur.no=$('#i_no').value;cur.cid=$('#i_c').value;cur.date=$('#i_d').value;cur.due=$('#i_due').value;cur.notes=$('#i_n').value;cur.paid=$('#i_p').checked}
+function saveInv(){
+  syncTop();
+  if(!cur.date||!cur.due){alert('Set the date and due date');return}
+  cur.items=cur.items.filter(function(x){return x.d||+x.price});
+  if(!cur.items.length){alert('Add at least one item');return}
+  if(cur.id){DB.invoices=DB.invoices.map(function(x){return x.id===cur.id?cur:x})}else{cur.id=uid();DB.invoices.push(cur);DB.seq++}
+  save();var id=cur.id;closeSheet();notifyDue();openInv(id);
+}
+function delInv(){if(!confirm('Delete this invoice?'))return;DB.invoices=DB.invoices.filter(function(x){return x.id!==cur.id});save();closeSheet()}
+function openInv(id){
+  var i=DB.invoices.find(function(x){return x.id===id});if(!i)return;var c=cust(i.cid),s=DB.settings;
+  var lines=i.items.map(function(x){var t=(+x.qty||0)*(+x.price||0);return '<div>'+esc(x.d)+'</div><div class="r"><span>'+(+x.qty)+' x '+money(x.price)+'</span><span>'+money(t)+'</span></div>'}).join('');
+  $('#rcpt').innerHTML='<div class="noprint row" style="max-width:640px;margin:0 auto"><button class="s" onclick="closeRcpt()">← Back</button><button class="s" onclick="editInv(\''+id+'\');closeRcpt()">Edit</button><button class="s" onclick="togglePaid(\''+id+'\')">'+(i.paid?'Mark unpaid':'Mark paid')+'</button><button onclick="window.print()">🖨 Print</button></div>'+
+  '<div class="paper"><div class="c"><b style="font-size:15px">'+esc(s.biz)+'</b><br>'+esc(s.addr)+'<br>'+esc(s.phone)+'</div><hr><div class="r"><span>Invoice #'+esc(i.no)+'</span><span>'+fdate(i.date)+'</span></div><div>Bill to: '+esc(c.name)+'</div>'+(c.phone?'<div>'+esc(c.phone)+'</div>':'')+'<hr>'+lines+'<hr><div class="r"><b>TOTAL</b><b>'+money(total(i))+'</b></div><div class="r"><span>Status</span><span>'+(i.paid?'PAID':'UNPAID')+'</span></div><div class="r"><span>Due date</span><span>'+fdate(i.due)+'</span></div>'+(i.notes?'<hr><div>'+esc(i.notes)+'</div>':'')+'<hr><div class="c">'+esc(s.footer)+'</div></div>';
+  $('#rcpt').className='show';
+}
+function closeRcpt(){$('#rcpt').className='';$('#rcpt').innerHTML='';render()}
+function togglePaid(id){var i=DB.invoices.find(function(x){return x.id===id});i.paid=!i.paid;save();openInv(id)}
+
+document.querySelectorAll('nav button').forEach(function(b){b.onclick=function(){tab=b.dataset.t;render()}});
+load();render();notifyDue();
+document.addEventListener('visibilitychange',function(){if(!document.hidden){render();notifyDue()}});
+</script>
+</body>
+</html>
