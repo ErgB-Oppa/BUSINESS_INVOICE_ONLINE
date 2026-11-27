@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Invoice Keeper">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--tx:#1b1f24;--mut:#6b7380;--ac:#0f766e;--acx:#fff;--bd:#e2e5ea;--red:#c62828;--amb:#b45309;--grn:#15803d;--b1:#fff0f7;--b2:#fff7ee;--b3:#eafaf0;--patop:.26;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171b;--card:#1e2329;--tx:#eceff3;--mut:#98a2b0;--ac:#2dd4bf;--acx:#06201d;--bd:#2f363f;--red:#ef6b6b;--amb:#f0a64a;--grn:#4ade80;--b1:#2b1026;--b2:#1c1430;--b3:#0d251c;--patop:.20;color-scheme:dark}}
@@ -595,7 +595,9 @@ function paperHtml(i,lines,label){
   var s=DB.settings,pl=!i.cash;
   return '<div class="paper">'+(label?'<div class="tag2">'+esc(label)+'</div>':'')+'<div class="c"><b style="font-size:15px">'+esc(s.biz)+'</b>'+((s.addr||s.phone)?'<br>'+esc([s.addr,s.phone].filter(Boolean).join(' | ')):'')+'</div><hr><div class="r"><span>Invoice #'+esc(i.no)+'</span><span>'+fdate(i.date)+'</span></div>'+(nmo(i)?'<div>'+(i.cid?'Dealer: ':'Customer: ')+esc(nmo(i))+'</div>':'')+'<hr><div class="r c3"><b>Orig. price</b><b>Disc %</b><b>Disc. price</b></div>'+lines+'<hr>'+(lateFee(i)?'<div class="r"><span>Items</span><span>'+money(total(i))+'</span></div><div class="r"><span>Overdue payment (5% / 5 days)</span><span>'+feeMoney(lateFee(i))+'</span></div>':'')+'<div class="r"><b>TOTAL</b><b>'+money(amountDue(i))+'</b></div>'+(paidAmt(i)>0&&!i.cash?'<div class="r"><span>Paid to date</span><span>'+money(paidAmt(i))+'</span></div><div class="r"><b>BALANCE</b><b>'+money(balance(i))+'</b></div>':'')+'<div class="r"><span>'+(i.paid?'PAID'+(i.cash?' (cash)':''):'UNPAID')+'</span><span>'+(i.paid?'':'Due '+fdate(i.due))+'</span></div>'+(i.notes?'<div>'+esc(i.notes)+'</div>':'')+(pl?'<div class="ack">I received the items listed above and agree to pay the total by the due date.</div><div class="sgnspace"></div><div class="sg1"><div class="f"><div class="ln"></div><span>Received by &amp; Signature</span></div><div class="f dt"><div class="ln"></div><span>Date</span></div></div>':'')+(s.footer?'<div class="c" style="margin-top:6px">'+esc(s.footer)+'</div>':'')+'</div>'}
 function openInv(id){
-  var i=DB.invoices.find(function(x){return x.id===id});if(!i)return;var c=i.cid?cust(i.cid):{phone:''},s=DB.settings;
+  var i=DB.invoices.find(function(x){return x.id===id});if(!i)return;
+  var sh=document.querySelectorAll('.sheet');for(var q=0;q<sh.length;q++)sh[q].remove();
+  var c=i.cid?cust(i.cid):{phone:''},s=DB.settings;
   var lines=i.items.map(function(x){var q=+x.qty||0,dd=+x.disc||0;return '<div class="r"><span>'+esc(x.d)+' x'+q+'</span><b>'+money(lineT(x))+'</b></div><div class="r c3"><span>'+money(+x.price||0)+'</span><span>'+(dd>0?dd+'%':'-')+'</span><span>'+money(dprice(x))+'</span></div>'}).join('');
   $('#rcpt').innerHTML='<div class="noprint row" style="max-width:640px;margin:0 auto;flex-wrap:wrap;row-gap:8px"><button class="s" onclick="closeRcpt()">← Back</button><button class="s" onclick="editInv(\''+id+'\');closeRcpt()">Edit</button>'+(i.paid?(i.cash?'':'<button class="s" onclick="togglePaid(\''+id+'\')">Mark unpaid</button>'):'<button onclick="closeRcpt();openPay(\''+id+'\')">Pay</button><button class="s" onclick="togglePaid(\''+id+'\')">Mark paid</button>')+'<button onclick="doPrint()">Print</button><button class="s" id="svb" style="display:none" onclick="saveRcpt(\''+id+'\')">Save receipt</button></div>'+
   (i.cash?paperHtml(i,lines,''):paperHtml(i,lines,'DEALER COPY')+paperHtml(i,lines,'STORE COPY - keep for records'));
