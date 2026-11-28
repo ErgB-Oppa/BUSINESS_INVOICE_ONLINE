@@ -61,6 +61,8 @@ input[readonly]{background:var(--card);font-weight:600}
 .dmt tr.b td{font-weight:700;background:rgba(15,118,110,.07)}
 html{-webkit-text-size-adjust:100%}button{cursor:pointer;-webkit-tap-highlight-color:transparent}button:active{transform:scale(.98)}button:disabled{cursor:default}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.pvbox{background:var(--card);border:1px solid var(--bd);border-top:4px solid var(--ac);border-radius:14px;padding:10px 10px 2px;margin:0 0 12px;min-width:0}.pvbox .card{background:var(--bg);margin-bottom:8px}.pvh{padding:2px 2px 10px}.pve{padding:2px 2px 12px}.clip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (min-width:700px){#app.wide{max-width:1100px}.pvwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;margin-bottom:12px}.pvwrap .pvbox{margin:0}}
 #rcpt{display:none}
 #rcpt.show{display:block;position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:9;padding:14px}
 .paper{background:#fff;color:#000;width:105mm;max-width:100%;min-height:148mm;margin:10px auto;padding:7mm 6mm;font:12px/1.25 "Courier New",monospace}
@@ -287,7 +289,7 @@ function render(){
   document.querySelectorAll('nav button').forEach(function(b){b.classList.toggle('on',b.dataset.t===tab)});
   var h='';
   if(tab==='home')h=vHome();else if(tab==='inv')h=vInv();else if(tab==='cus')h=vCus();else if(tab==='sal')h=vSales();else h=vSet();
-  $('#app').innerHTML=h;
+  $('#app').classList.toggle('wide',tab==='inv');$('#app').innerHTML=h;
 }
 function invRow(i){
   var p=paidAmt(i),f=feeCount(i);
@@ -297,16 +299,31 @@ function vHome(){
   var l=dueList(),unpaid=DB.invoices.filter(function(i){return !i.paid}),owed=unpaid.reduce(function(a,i){return a+balance(i)},0);
   var tk=ymd(new Date()),td=DB.invoices.filter(function(i){return i.date===tk&&isSale(i)}),tc=td.filter(function(i){return i.cash}),tl=td.filter(function(i){return !i.cash});
   var ts=function(a){return a.reduce(function(x,i){return x+amountDue(i)},0)};
-  var h='<div class="row"><h1>'+esc(DB.settings.biz)+'</h1><button class="s sm" onclick="cycleTheme()" aria-label="Change theme">'+themeIcon()+'</button></div>'+(bkNeedFix?'<div class="banner" style="cursor:pointer" onclick="fixBackup()"><div class="b">Backup needs your attention</div><div class="mut">Tap to allow it again.</div></div>':(!bkOn()?'<div class="banner" style="cursor:pointer" onclick="enableAutoBackup()"><div class="b">Automatic backup is off</div><div class="mut">Tap once to set it up — then you never have to think about it.</div></div>':''))+'<div class="card"><div class="mut">Daily sale · '+new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'})+'</div><div class="b" style="font-size:26px;margin:2px 0">'+money(ts(td))+'</div><div class="mut">'+td.length+' sale'+(td.length===1?'':'s')+' today · Cash '+money(ts(tc))+' · Paid later '+money(ts(tl))+'</div></div>';
+  var h='<div class="row"><h1>'+esc(DB.settings.biz)+'</h1><button class="s sm" onclick="cycleTheme()" aria-label="Change theme">'+themeIcon()+'</button></div>'+(bkNeedFix?'<div class="banner" style="cursor:pointer" onclick="fixBackup()"><div class="b">Backup needs your attention</div><div class="mut">Tap to allow it again.</div></div>':(!bkOn()?'<div class="banner" style="cursor:pointer" onclick="enableAutoBackup()"><div class="b">Automatic backup is off</div><div class="mut">Tap once to set it up — then you never have to think about it.</div></div>':''))+'<button style="width:100%;margin-bottom:12px" onclick="editInv()">+ New sale</button><div class="card"><div class="mut">Daily sale · '+new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'})+'</div><div class="b" style="font-size:26px;margin:2px 0">'+money(ts(td))+'</div><div class="mut">'+td.length+' sale'+(td.length===1?'':'s')+' today · Cash '+money(ts(tc))+' · Paid later '+money(ts(tl))+'</div></div>';
   if(l.length)h+='<div class="banner"><div class="b">'+l.length+' invoice'+(l.length>1?'s':'')+' due within '+rd()+' days or overdue</div></div>'+l.map(invRow).join('');
   else h+='<div class="card mut">Nothing due soon.</div>';
   h+='<div class="g2"><div class="card"><div class="mut">Unpaid total</div><div class="b" style="font-size:20px">'+money(owed)+'</div></div><div class="card"><div class="mut">Dealers</div><div class="b" style="font-size:20px">'+DB.customers.length+'</div></div></div>';
-  h+='<button style="width:100%" onclick="editInv()">+ New sale</button>';
   return h;
 }
+function saleRow(i){
+  var p=paidAmt(i),it=(i.items||[]).map(function(x){return (x.d||'Item')+' x'+(+x.qty||0)}).join(', ');
+  var tg=dueTag(i);if(!i.paid&&i.due)tg=tg.replace(fdate(i.due),pd(i.due).toLocaleDateString(undefined,{month:'short',day:'numeric'}));
+  return '<div class="card" onclick="openInv(\''+i.id+'\')"><div class="row"><div style="min-width:0;flex:1"><div class="b">#'+esc(i.no)+' · '+esc(inm(i))+'</div><div class="mut clip">'+esc(it||'No items')+'</div>'+(!i.cash&&p>0&&!i.paid?'<div class="mut">Paid '+money(p)+' so far</div>':'')+'</div><div style="text-align:right;flex:none"><div class="b">'+money(i.paid?amountDue(i):balance(i))+'</div>'+tg+'</div></div></div>';
+}
 function vInv(){
-  var l=DB.invoices.slice().sort(function(a,b){return a.paid-b.paid||(a.due<b.due?-1:1)});
-  return '<h1>Sale</h1><button style="width:100%;margin-bottom:12px" onclick="editInv()">+ New sale</button>'+(l.length?l.map(invRow).join(''):'<div class="card mut">No sales yet.</div>');
+  var now=new Date(),tk=ymd(now),num=function(i){var n=parseInt(i.no,10);return isNaN(n)?-1:n};
+  var l=DB.invoices.filter(function(i){return i.date===tk}).sort(function(a,b){return num(b)-num(a)||(String(a.id)<String(b.id)?1:-1)});
+  var cs=l.filter(function(i){return i.cash}),pl=l.filter(function(i){return !i.cash});
+  var sum=function(a){return a.reduce(function(x,i){return x+amountDue(i)},0)},owe=pl.reduce(function(x,i){return x+balance(i)},0);
+  var cnt=function(n){return n+' sale'+(n===1?'':'s')};
+  var box=function(id,title,col,a,sub,none){return '<div class="pvbox" id="'+id+'" style="border-top-color:var(--'+col+')"><div class="pvh"><div class="b">'+title+'</div><div class="b '+col+'" style="font-size:22px">'+money(sum(a))+'</div><div class="mut">'+sub+'</div></div>'+(a.length?a.map(saleRow).join(''):'<div class="mut pve">'+none+'</div>')+'</div>'};
+  return '<h1>Sale</h1><div class="mut" style="margin:-8px 0 12px">Today only · '+esc(now.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'}))+'</div>'+
+    '<button style="width:100%;margin-bottom:12px" onclick="editInv()">+ New sale</button>'+
+    '<div class="pvwrap">'+
+      box('pvCash','Cash','grn',cs,cnt(cs.length)+' · paid now','No cash sales yet today.')+
+      box('pvLater','Pay later','amb',pl,cnt(pl.length)+(pl.length?(owe>0?' · '+money(owe)+' unpaid':' · all paid'):''),'No pay later sales yet today.')+
+    '</div>'+
+    '<div class="mut" style="text-align:center;margin:4px 0 8px">Only today\'s sales are shown here. Past sales are in Report and Dealers.</div>';
 }
 function pdfSan(t){return String(t==null?'':t).replace(/\u20b1/g,'PHP ').replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/[\u2013\u2014]/g,'-').replace(/\u2026/g,'...').replace(/[\u00a0\u2007\u2009\u202f]/g,' ').replace(/[\r\n\t]+/g,' ').replace(/[^\x20-\xff]/g,'?')}
 function pdfEsc(t){return t.replace(/[\\()]/g,'\\$&').replace(/[^\x20-\x7e]/g,function(c){return '\\'+('00'+c.charCodeAt(0).toString(8)).slice(-3)})}
@@ -561,7 +578,7 @@ function nameField(){
 }
 function drawInv(){
   var s=document.querySelector('.sheet');if(s)s.remove();
-  var h='<h1>'+(cur.id?'Edit':'New')+' sale</h1><label class="row" style="background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px"><span class="b">Cash payment<br><span class="mut" style="font-weight:400">'+(cur.cash?'Paid now · no due date':'Pay later · set a due date')+'</span></span><input type="checkbox" id="i_cash" style="width:26px;height:26px;margin:0"'+(cur.cash?' checked':'')+' onchange="setCash(this.checked)"></label>'+nameField()+'<div class="g2"><div'+(cur.cash?'':' style="grid-column:1/-1"')+'><label>Invoice no.</label><input id="i_no" value="'+esc(cur.no)+'"></div><div><label>Date</label><input id="i_d" type="date" value="'+esc(cur.date)+'"></div>'+(cur.cash?'':'<div><label>Due date</label><input id="i_due" type="date" value="'+esc(cur.due)+'"></div>')+'</div><h2>Items</h2>';
+  var h='<h1>'+(cur.id?'Edit':'New')+' sale</h1><label class="row" style="background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px"><span class="b">Cash payment<br><span class="mut" style="font-weight:400">'+(cur.cash?'Paid now · no due date':'Pay later · set a due date')+'</span></span><input type="checkbox" id="i_cash" style="width:26px;height:26px;margin:0"'+(cur.cash?' checked':'')+' onchange="setCash(this.checked)"></label>'+nameField()+'<div class="g2"><div'+(cur.cash?'':' style="grid-column:1/-1"')+'><label>Invoice no.</label><input id="i_no" value="'+esc(cur.no)+'"></div><div><label>Date</label><input id="i_d" type="hidden" value="'+esc(cur.date)+'"><input readonly tabindex="-1" aria-label="Sale date" value="'+esc(cur.date?(cur.date===ymd(new Date())?'Today, ':'')+fdate(cur.date):'')+'"></div>'+(cur.cash?'':'<div><label>Due date</label><input id="i_due" type="date" min="'+esc(cur.date)+'" value="'+esc(cur.due)+'"></div>')+'</div><h2>Items</h2>';
   cur.items.forEach(function(x,k){h+='<div class="card"><label>Item description</label><input placeholder="e.g. Rice 25kg" value="'+esc(x.d)+'" oninput="cur.items['+k+'].d=this.value"><div class="g2"><div><label>Quantity</label><input type="number" inputmode="decimal" min="0" value="'+esc(x.qty)+'" oninput="itemCh('+k+',\'qty\',this.value)"></div><div><label>Original price</label><input type="number" inputmode="decimal" min="0" placeholder="0.00" value="'+esc(x.price)+'" oninput="itemCh('+k+',\'price\',this.value)"></div><div><label>Discount %</label><input type="number" inputmode="decimal" min="0" max="100" placeholder="0" value="'+(x.disc||'')+'" oninput="itemCh('+k+',\'disc\',this.value)"></div><div><label>Discounted price</label><input id="dp'+k+'" readonly tabindex="-1" value="'+dshow(x)+'"></div></div><div class="row"><span class="mut">Line total: <b id="lt'+k+'">'+money(lineT(x))+'</b></span><button class="d sm" onclick="cur.items.splice('+k+',1);syncTop();drawInv()">Remove</button></div></div>'});
   h+='<button class="s sm" onclick="syncTop();cur.items.push({d:\'\',qty:1,price:\'\'});drawInv()">+ Add item</button><div class="row" style="margin:12px 0"><span class="b">Total</span><span class="b" id="tot" style="font-size:20px">'+money(total(cur))+'</span></div><label>Notes</label><textarea id="i_n" rows="2">'+esc(cur.notes)+'</textarea><div class="row" style="margin-top:12px"><button class="s" onclick="closeSheet()">Cancel</button>'+(cur.id?'<button class="d" onclick="delInv()">Delete</button>':'')+'<button onclick="saveInv()">Save</button></div>';
   sheet(h);
@@ -571,7 +588,10 @@ function tot(){$('#tot').textContent=money(total(cur))}
 function syncTop(){if(!$('#i_no'))return;cur.no=$('#i_no').value;cur.name=$('#i_nm')?$('#i_nm').value.trim():'';cur.date=$('#i_d').value;cur.due=cur.cash?cur.date:($('#i_due')?$('#i_due').value:cur.due);cur.notes=$('#i_n').value;cur.paid=cur.cash?true:($('#i_p')?$('#i_p').checked:cur.paid)}
 function saveInv(){
   syncTop();
-  if(!cur.date||!cur.due){toast('Set the date and due date');return}
+  if(!cur.id){cur.date=ymd(new Date());if(cur.cash)cur.due=cur.date}
+  if(!cur.date||!cur.due){toast('Set the due date');return}
+  var ex0=DB.invoices.find(function(x){return x.id===cur.id});
+  if(!cur.cash&&cur.due<cur.date&&(!ex0||ex0.due!==cur.due)){toast('The due date cannot be before the sale date.');return}
   if(!cur.cash&&!DB.customers.some(function(c){return c.name.toLowerCase()===cur.name.toLowerCase()})){toast('A sale with a due date must be for a saved dealer. Choose a dealer, or switch Cash payment on.');return}
   var nm=cur.name;if(nm){var f=DB.customers.find(function(c){return c.name.toLowerCase()===nm.toLowerCase()});cur.cid=f?f.id:'';cur.name=f?f.name:nm}else{cur.cid='';cur.name=''}
   cur.items=cur.items.filter(function(x){return x.d||+x.price});
@@ -618,7 +638,7 @@ load();migrate();applyTheme();buildBg();render();notifyDue();initBackup();
 function registerSW(){if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol))window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').then(function(){if(window.caches)return caches.open('invoice-keeper-v1').then(function(c){return c.add(location.pathname+location.search)})}).catch(function(){})})}
 document.addEventListener('visibilitychange',function(){if(!document.hidden){if(tab!=='set')render();notifyDue()}});
 registerSW();
+var dayKey=ymd(new Date());setInterval(function(){var k=ymd(new Date());if(k===dayKey)return;dayKey=k;if(tab!=='set'&&!document.querySelector('.sheet,.dlg')&&!$('#rcpt').classList.contains('show'))render()},60000);
 </script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a5ffd9c8cea352a9',t:'MTc5NTYwMTI5MQ=='};var l=window.parent.location,o;try{o=new URL(l.origin).origin}catch(e){try{o=new URL(new URL(l.href).origin).origin}catch(e){o=''}}var u='/cdn-cgi/challenge-platform/scripts/jsd/main.js?ray=a5ffd9c8cea352a9',a=document.createElement('script');a.src=o?new URL(u,o).href:u;document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a61919f4ea001fa9',t:'MTc5NTg2NjA2NA=='};var l=window.parent.location,o;try{o=new URL(l.origin).origin}catch(e){try{o=new URL(new URL(l.href).origin).origin}catch(e){o=''}}var u='/cdn-cgi/challenge-platform/scripts/jsd/main.js?ray=a61919f4ea001fa9',a=document.createElement('script');a.src=o?new URL(u,o).href:u;document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
